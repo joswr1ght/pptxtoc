@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import argparse
 import tempfile
 import zipfile
@@ -116,7 +117,7 @@ def createtoc(args, toc):
     # Iterate through each of the ToC entries, calculating the number of dots needed in the middle textbox
     for page in sorted(toc):
         tocpxlen = font.getsize(toc[page])[0]
-        print "DEBUG: %03d %s"%(tocpxlen, toc[page])
+        #print "DEBUG: %03d %s"%(tocpxlen, toc[page])
 
         # The number of dots we use is the max width in pixels, minus the length of the ToC entry in pixels,
         # divided by the pixel width of a single dot, rounded down.
@@ -145,6 +146,8 @@ def createtoc(args, toc):
         sys.stderr.write("Error saving output pptx file \'%s\'.\n"%args.outputpptx)
     return
 
+class HelpWithRawFormatter(argparse.RawDescriptionHelpFormatter, argparse.ArgumentDefaultsHelpFormatter):
+        pass
 
 if __name__ == "__main__":
 
@@ -162,7 +165,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
             description='Create a Table of Content from a PowerPoint file',
             prog='pptxtoc.py',
-            formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+            formatter_class=HelpWithRawFormatter)
     parser.add_argument('-o', action="store", dest="outputpptx", default='toc.pptx',
             help="output pptx ToC slide")
     parser.add_argument('-f', action="store", dest="font", default='Tahoma',
