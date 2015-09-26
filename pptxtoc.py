@@ -9,6 +9,7 @@ import sys
 import os
 import re
 from PIL import ImageFont
+import pdb
 
 from itertools import groupby
 from operator import itemgetter
@@ -21,6 +22,12 @@ from pptx.enum.text import PP_ALIGN, MSO_AUTO_SIZE
 
 
 FONTSIZE=18
+# This is the number of dots that fit using the given font in a 8.5" text box
+MAXDOTS=109.0
+# This is the maximum pixel width of a 8.5" text box
+MAXPXWIDTHTEXT=570.0
+MAXPXWIDTHBULLETS=580.0
+MAXLINESPERSLIDE=16
 
 def getnotes(pptxfile):
     words = {}
@@ -66,26 +73,15 @@ def createtoc(args, toc):
     blank_slide_layout = prs.slide_layouts[args.stylemasterslide]
     slide = prs.slides.add_slide(blank_slide_layout)
 
-    # XXX TODO: Add handling when the number of ToC entries surpasses one slide
     slide.shapes.title.text = "Table of Contents"
 
     # Get font information
     font = ImageFont.truetype(args.fontdir + args.font, FONTSIZE)
 
-    # This is the number of dots that fit using the given font in a 8.5" text box
-    MAXDOTS=109
-    # This is the maximum pixel width of a 8.5" text box
-    MAXPXWIDTHTEXT=570
-    MAXPXWIDTHBULLETS=580
-
-    # This is the size of a single dot in pixels
-    dotwidth=float(MAXPXWIDTHTEXT)/MAXDOTS
-
-    # This is the maximum width for a given ToC line
-
     # The ToC entries and the page numbers are strings delimited by \n
     titles=''
     pages=''
+    linecount=0
     for pagenum in sorted(toc):
         tocpxlen = font.getsize(toc[pagenum])[0]
         if tocpxlen > MAXPXWIDTHTEXT:
@@ -97,6 +93,29 @@ def createtoc(args, toc):
                 tocpxlen = font.getsize(toc[pagenum])[0]
         titles += toc[pagenum] + "\n"
         pages += str(pagenum) + "\n"
+        linecount+=1
+
+        # If we exceed MAXLINESPERSLIDE, create the slide and add a new empty slide for more content
+        if linecount == MAXLINESPERSLIDE:
+            print "New slide" 
+            generateslide(titles, pages, slide, font, prs)
+            titles=''
+            pages=''
+            linecount=0
+            # Create a blank slide in the object using the second master slide style by default
+            blank_slide_layout = prs.slide_layouts[args.stylemasterslide]
+            slide = prs.slides.add_slide(blank_slide_layout)
+            slide.shapes.title.text = "Table of Contents"
+
+    if linecount != 0:
+        print "Last slide" 
+        generateslide(titles, pages, slide, font, prs)
+
+
+def generateslide(titles, pages, slide, font, prs):
+
+    # This is the size of a single dot in pixels
+    dotwidth=MAXPXWIDTHTEXT/MAXDOTS
 
     # Build the left-hand ToC entries first
     top=Inches(1.75)
@@ -115,8 +134,8 @@ def createtoc(args, toc):
     tf = txBox.text_frame
 
     # Iterate through each of the ToC entries, calculating the number of dots needed in the middle textbox
-    for page in sorted(toc):
-        tocpxlen = font.getsize(toc[page])[0]
+    for title in titles.split('\n')[0:-1]:
+        tocpxlen = font.getsize(title)[0]
         #print "DEBUG: %03d %s"%(tocpxlen, toc[page])
 
         # The number of dots we use is the max width in pixels, minus the length of the ToC entry in pixels,
@@ -145,6 +164,7 @@ def createtoc(args, toc):
     except:
         sys.stderr.write("Error saving output pptx file \'%s\'.\n"%args.outputpptx)
     return
+
 
 class HelpWithRawFormatter(argparse.RawDescriptionHelpFormatter, argparse.ArgumentDefaultsHelpFormatter):
         pass
@@ -210,7 +230,8 @@ if __name__ == "__main__":
     for key in words:
         m=re.search(r'{{{(.*)}}}',words[key])
         if m is not None:
-            toc[key] = m.groups(0)[0]
+            # key+1 reflects the page number from offset counting
+            toc[key+1] = m.groups(0)[0]
 
     # Generate the output ToC slide using the identified page numbers and titles
     createtoc(args, toc)
